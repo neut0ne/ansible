@@ -1,0 +1,34 @@
+---
+- name: Create SSH keypair, enable SSH agent, and verify connection
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Generate SSH keypair
+      ansible.builtin.openssh_keypair:
+        path: "~/.ssh/id_rsa"
+        size: 2048
+        type: rsa
+        force: false
+      register: ssh_keypair
+
+    - name: Ensure ssh-agent is running
+      ansible.builtin.command:
+        cmd: "eval $(ssh-agent -s)"
+      register: agent_output
+      ignore_errors: yes
+
+    - name: Add private key to SSH agent
+      ansible.builtin.command:
+        cmd: "ssh-add ~/.ssh/id_rsa"
+      when: ssh_keypair.changed
+
+    - name: Test SSH connection to remote site
+      ansible.builtin.command:
+        cmd: "ssh -o StrictHostKeyChecking=no -o BatchMode=yes -T user@remote_host echo 'SSH connection successful'"
+      register: ssh_test
+      ignore_errors: yes
+
+    - name: Verify SSH connection
+      ansible.builtin.debug:
+        msg: "SSH connection created and verified."
+      when: ssh_test.rc == 0
