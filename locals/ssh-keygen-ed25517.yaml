@@ -1,0 +1,43 @@
+---
+- name: Create and verify ED25519 SSH keypair locally
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    ssh_key_path: "{{ lookup('env','HOME') }}/.ssh/id_ansible_ed25519"
+    remote_user: your_remote_user
+    remote_host: your.remote.host
+
+  tasks:
+
+    - name: Generate ED25519 SSH key pair if it doesn't exist
+      openssh_keypair:
+        path: "{{ ssh_key_path }}"
+        type: ed25519
+        force: no
+        comment: "ansible@localhost"
+
+    - name: Start ssh-agent and add the key
+      shell: |
+        eval "$(ssh-agent -s)"
+        ssh-add {{ ssh_key_path }}
+      register: agent_output
+
+    - name: Show ssh-agent output (for debug)
+      debug:
+        var: agent_output.stdout_lines
+
+    - name: Ensure remote host is known
+      shell: |
+        ssh-keyscan -H {{ remote_host }} >> ~/.ssh/known_hosts
+      changed_when: false
+
+    - name: Test SSH connection to remote host
+      shell: |
+        ssh -o BatchMode=yes -i {{ ssh_key_path }} {{ remote_user }}@{{ remote_host }} "echo 'ssh connection created and verified.'"
+      register: ssh_test
+      failed_when: ssh_test.rc != 0
+
+    - name: Display result
+      debug:
+        msg: "{{ ssh_test.stdout }}"
